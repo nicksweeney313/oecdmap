@@ -13,9 +13,9 @@ import zipfile
 import os
 
 # === Load and simplify shapefile from a remote ZIP ===
-def load_gdf_from_remote_zip(url, simplify_tolerance=0.1):
+def load_gdf_from_remote_zip(url, simplify_tolerance=0.01):
     with tempfile.TemporaryDirectory() as tmpdir:
-        zip_path = os.path.join(tmpdir, "OECD_TL2_shapefile.zip")
+        zip_path = os.path.join(tmpdir, "test.zip")
 
         # Download the ZIP
         r = requests.get(url)
@@ -27,16 +27,18 @@ def load_gdf_from_remote_zip(url, simplify_tolerance=0.1):
             zip_ref.extractall(tmpdir)
 
         # Find and read the .shp file
-        for file in os.listdir(tmpdir):
-            if file.endswith(".shp"):
-                gdf = gpd.read_file(os.path.join(tmpdir, file)).to_crs("EPSG:4326")
-                gdf["ID"] = gdf.index.astype(str)
-                if simplify_tolerance:
-                    gdf["geometry"] = gdf["geometry"].simplify(simplify_tolerance, preserve_topology=True)
-                return gdf
-
+        # Recursively find .shp file
+        import glob
+        shp_files = glob.glob(os.path.join(tmpdir, "**", "*.shp"), recursive=True)
+        if shp_files:
+            gdf = gpd.read_file(shp_files[0]).to_crs("EPSG:4326")
+            gdf["ID"] = gdf.index.astype(str)
+            if simplify_tolerance:
+                gdf["geometry"] = gdf["geometry"].simplify(simplify_tolerance, preserve_topology=True)
+            return gdf
+        
     raise FileNotFoundError("Shapefile not found in ZIP")
-gdf = load_gdf_from_remote_zip("https://www.dropbox.com/scl/fi/7wxfgrlddf49lec66ltdc/test.zip?rlkey=wvh4g4oxkcym13789e5ean2ag&st=wlbqn5j1&dl=1")
+gdf = load_gdf_from_remote_zip("https://www.dropbox.com/scl/fi/7wxfgrlddf49lec66ltdc/test.zip?rlkey=wvh4g4oxkcym13789e5ean2ag&st=00tjzr92&dl=1")
 
 # === Add extreme-value demo variables ===
 def add_extreme_values(gdf, seed=42):
