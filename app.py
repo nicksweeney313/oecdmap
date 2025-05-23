@@ -36,8 +36,7 @@ def load_gdf_from_remote_zip(url, simplify_tolerance=0.1):
                 return gdf
 
     raise FileNotFoundError("Shapefile not found in ZIP")
-gdf = load_gdf_from_remote_zip("https://www.dropbox.com/scl/fi/n3ea3x9d7zeqd2yrdbzlt/OECD_TL2_shapefile.zip?rlkey=5rmmxpqj4zskalmiva89h1zk1&st=fcml2zpo&dl=1")
-
+gdf = load_gdf_from_remote_zip("https://www.dropbox.com/scl/fi/7wxfgrlddf49lec66ltdc/test.zip?rlkey=wvh4g4oxkcym13789e5ean2ag&st=wlbqn5j1&dl=1")
 
 # === Add extreme-value demo variables ===
 def add_extreme_values(gdf, seed=42):
