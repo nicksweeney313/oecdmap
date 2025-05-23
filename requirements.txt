@@ -1,0 +1,14 @@
+dash
+dash-leaflet
+dash-leaflet[all]
+protobuf==3.20.0
+plotly
+numpy
+pandas
+matplotlib
+geopandas
+shapely
+pyproj
+gunicorn
+fiona
+rtree

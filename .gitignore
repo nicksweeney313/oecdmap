@@ -1,0 +1,11 @@
+__pycache__/
+.DS_Store
+.vscode/
+*.shp
+*.dbf
+*.shx
+*.prj
+*.cpg
+*.pyc
+.env
+.venv/
