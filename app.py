@@ -13,7 +13,7 @@ import zipfile
 import os
 
 # === Load and simplify shapefile from a remote ZIP ===
-def load_gdf_from_remote_zip(url, simplify_tolerance=0.005):
+def load_gdf_from_remote_zip(url, simplify_tolerance=0.1):
     with tempfile.TemporaryDirectory() as tmpdir:
         zip_path = os.path.join(tmpdir, "OECD_TL2_shapefile.zip")
 
