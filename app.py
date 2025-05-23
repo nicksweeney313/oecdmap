@@ -7,14 +7,37 @@ from dash import dcc, html, Input, Output, State, ctx
 import json
 import os
 from shapely.geometry import box
+import tempfile
+import requests
+import zipfile
+import os
 
-# === Load and simplify shapefile ===
-def load_gdf(path, simplify_tolerance=0.005):
-    gdf = gpd.read_file(path).to_crs("EPSG:4326")
-    gdf["ID"] = gdf.index.astype(str)
-    if simplify_tolerance:
-        gdf["geometry"] = gdf["geometry"].simplify(simplify_tolerance, preserve_topology=True)
-    return gdf
+# === Load and simplify shapefile from a remote ZIP ===
+def load_gdf_from_remote_zip(url, simplify_tolerance=0.005):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zip_path = os.path.join(tmpdir, "OECD_TL2_shapefile.zip")
+
+        # Download the ZIP
+        r = requests.get(url)
+        with open(zip_path, "wb") as f:
+            f.write(r.content)
+
+        # Extract
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(tmpdir)
+
+        # Find and read the .shp file
+        for file in os.listdir(tmpdir):
+            if file.endswith(".shp"):
+                gdf = gpd.read_file(os.path.join(tmpdir, file)).to_crs("EPSG:4326")
+                gdf["ID"] = gdf.index.astype(str)
+                if simplify_tolerance:
+                    gdf["geometry"] = gdf["geometry"].simplify(simplify_tolerance, preserve_topology=True)
+                return gdf
+
+    raise FileNotFoundError("Shapefile not found in ZIP")
+gdf = load_gdf_from_remote_zip("https://www.dropbox.com/scl/fi/n3ea3x9d7zeqd2yrdbzlt/OECD_TL2_shapefile.zip?rlkey=5rmmxpqj4zskalmiva89h1zk1&st=fcml2zpo&dl=1")
+
 
 # === Add extreme-value demo variables ===
 def add_extreme_values(gdf, seed=42):
@@ -32,7 +55,6 @@ def add_extreme_values(gdf, seed=42):
 
 # Load data
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-gdf = load_gdf("data/OECD_TL2_2020.shp")
 gdf = add_extreme_values(gdf)
 geojson = json.loads(gdf.to_json())
 available_vars = ["ghg_emissions", "pop_density"]
