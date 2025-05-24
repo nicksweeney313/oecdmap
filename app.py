@@ -28,6 +28,16 @@ shapefile_name = {
 
 region = "england"
 
+display_config = {
+    "ghg_emissions": {
+        "title": "GHG Emissions (Tonnes per Capita)"
+    },
+    "pop_density": {
+        "title": "Population Density (People per km²)"
+    }
+    # Add more variables here as needed
+}
+
 def load_gdf_from_remote_zip(url, simplify_tolerance=0.005):
     with tempfile.TemporaryDirectory() as tmpdir:
         zip_name = f"{region}.zip"
@@ -73,58 +83,94 @@ geojson = json.loads(gdf.to_json())
 available_vars = ["ghg_emissions", "pop_density"]
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app.title = "Local Colour Scale"
 server = app.server
 
 app.layout = html.Div([
     dbc.Navbar(
         dbc.Container([
             dbc.Row([
-                dbc.Col(html.H4("OECD Local Colour Scale Viewer", className="text-white fw-bold mb-0"), width="auto"),
+                dbc.Col(html.H4("Local Colour Scale - Beta", className="text-white fw-bold mb-0"), width="auto"),
             ], align="center", className="g-0"),
         ], fluid=True),
-        color="dark", dark=True, className="mb-3 shadow-sm"
+        color="dark", dark=True, className="mb-0 shadow-sm"
     ),
-    dbc.Container([
-        
-        dbc.Row([
-            dbc.Col([
-                html.Label("Select Variable:", className="fw-bold small"),
-                dcc.Dropdown(
-                    id="var-dropdown",
-                    options=[{"label": v.replace("_", " ").title(), "value": v} for v in available_vars],
-                    value=available_vars[0],
-                    style={"fontSize": "0.85rem"}
-                )
-            ], xs=12, sm=6, md=3),
 
-            dbc.Col([
-                html.Label("Local Colour Scale:", className="fw-bold small"),
-                dcc.Checklist(
-                    id="dynamic-scale",
-                    options=[{"label": "Enable", "value": "dynamic"}],
-                    value=[],
-                    labelStyle={"marginRight": "1rem", "fontSize": "0.85rem"}
-                )
-            ], xs=12, sm=6, md=3),
+    html.Div(
+        dbc.Container([
+            dbc.Row([
+                dbc.Col([
+                    html.P([
+                        "Motivation: In cases where variable values are spatially concentrated (e.g., urban emissions), ",
+                        "a global colour scale can obscure local variation. ",
+                        "This tool allows you to assess regions relative to their immediate context — ",
+                        "a more informative lens for place-sensitive policy decisions. ",
+                        html.Br(),
+                        html.Em("See below for comments and extensions.")
+                    ], className="text-light small", style={"marginBottom": "0.8rem", "marginTop": "0.8rem"})
+                ])
+            ])
+        ], fluid=True),
+        style={"backgroundColor": "#343a40", "paddingBottom": "0.5rem"}
+    ),
 
-            dbc.Col([
-                html.Label("Lock Colour Scale:", className="fw-bold small"),
-                dcc.Checklist(
-                    id="lock-selection",
-                    options=[{"label": "Lock", "value": "locked"}],
-                    value=[],
-                    labelStyle={"fontSize": "0.85rem"}
-                )
-            ], xs=12, sm=6, md=3),
+    html.Div(
+        dbc.Container([
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        html.Label("Select Variable:", className="fw-bold small text-white text-center d-block"),
+                        dcc.Dropdown(
+                            id="var-dropdown",
+                            options=[
+                                {
+                                    "label": display_config.get(v, {}).get("title", v.replace("_", " ").title()),
+                                    "value": v
+                                } for v in available_vars
+                            ],
+                            value=available_vars[0],
+                            clearable=False  # This hides the "x" button
+                        )
+                    ], className="text-center")
+                ], xs=12, sm=6, md=3),
 
-            dbc.Col([
-                html.Label("\u00a0", style={"display": "block"}),
-                html.Button("Reset View", id="reset-view", n_clicks=0, className="btn btn-outline-secondary btn-sm")
-            ], xs=12, sm=6, md=3)
-        ])
-    ], fluid=True),
 
-    html.Div(style={"flex": "1"}, children=[
+
+                dbc.Col([
+                    html.Div([
+                        html.Label("Apply Local Colour Scale:", className="fw-bold small text-white text-center d-block"),
+                        dcc.Checklist(
+                            id="dynamic-scale",
+                            options=[{"label": "", "value": "dynamic"}],
+                            value=[],
+                            labelStyle={"display": "block", "textAlign": "center"}
+                        )
+                    ], className="text-center")
+                ], xs=12, sm=6, md=3),
+
+                dbc.Col([
+                    html.Div([
+                        html.Label("Lock Territory Selection:", className="fw-bold small text-white text-center d-block"),
+                        dcc.Checklist(
+                            id="lock-selection",
+                            options=[{"label": "", "value": "locked"}],
+                            value=[],
+                            labelStyle={"display": "block", "textAlign": "center"}
+                        )
+                    ], className="text-center")
+                ], xs=12, sm=6, md=3),
+
+                dbc.Col([
+                    html.Label("\u00a0", style={"display": "block"}),
+                    html.Button("Reset", id="reset-view", n_clicks=0, className="btn btn-outline-light btn-sm")
+                ], xs=12, sm=6, md=3)
+            ]),
+            html.Hr(style={"borderTop": "1px solid white", "marginTop": "0.5rem", "marginBottom": "0"})
+        ], fluid=True),
+        style={"backgroundColor": "#343a40", "paddingBottom": "0rem", "marginBottom": "0"}
+    ),
+
+    html.Div(style={"flex": "1", "backgroundColor": "#343a40"}, children=[
         dcc.Graph(
             id="map",
             style={"height": "85vh", "width": "100%"},
@@ -132,15 +178,34 @@ app.layout = html.Div([
         )
     ]),
 
+    html.Div(
+        dbc.Container([
+            dbc.Row([
+                dbc.Col([
+                    html.P(
+                        "Note: This version uses simulated data for demonstration purposes, but it can easily be adapted to real datasets via a simple matching process. "
+                        "Currently, the tool is limited to TL2 regions in Great Britain using legacy region files from Eric Gonnard’s Dropbox, "
+                        "but it could support geography selection with more robust computing resources than are currently available on this host. "
+                        "There is also potential for users to upload their own CSV files for quick analysis.",
+                        className="text-light small",
+                        style={"marginBottom": "0.8rem", "marginTop": "0.8rem"}
+                    )
+                ])
+            ])
+        ], fluid=True),
+        style={"backgroundColor": "#343a40", "paddingBottom": "0.5rem"}
+    ),
+
     dcc.Store(id="locked-colour-scale", data=None),
     dcc.Store(id="reset-trigger", data=0),
     dcc.Store(id="locked-bbox", data=None),
+    dcc.Store(id="locked-regions", data=None),
 
     html.Footer(
         dbc.Container(
             dbc.Row(
                 dbc.Col(
-                    html.Small("Built with Dash and Plotly | Local Scale Prototype", className="text-muted"),
+                    html.Small("May 2025 | Local Colour Scale Beta | Built with MapLibre, Dash and Plotly", className="text-muted"),
                     className="text-center py-2"
                 )
             )
@@ -154,20 +219,20 @@ app.layout = html.Div([
     Input("var-dropdown", "value"),
     Input("dynamic-scale", "value"),
     Input("map", "relayoutData"),
-    State("locked-colour-scale", "data"),
     State("lock-selection", "value"),
-    State("locked-bbox", "data")
+    State("locked-regions", "data")
 )
-def update_map(var, dynamic, relayout_data, locked_colour, lock_selection, locked_bbox):
+def update_map(var, dynamic, relayout_data, lock_selection, locked_regions):
     ddf = gdf.copy()
 
+    # Default zoom and center
     projected = gdf.to_crs("EPSG:3857")
     center_geom = projected.geometry.union_all().centroid
     center_point = gpd.GeoSeries([center_geom], crs="EPSG:3857").to_crs("EPSG:4326").iloc[0]
-    center_lat = center_point.y
-    center_lon = center_point.x
+    center_lat, center_lon = center_point.y, center_point.x
     zoom = 4
 
+    # Extract mapbox center/zoom from relayoutData
     if relayout_data:
         try:
             if "mapbox.center.lon" in relayout_data and "mapbox.center.lat" in relayout_data:
@@ -181,36 +246,42 @@ def update_map(var, dynamic, relayout_data, locked_colour, lock_selection, locke
             print("Viewport sync error:", e)
 
     zmin, zmax = None, None
-    use_locked_colours = "locked" in lock_selection and locked_colour is not None
+    use_locked = "locked" in lock_selection and locked_regions is not None
 
-    if use_locked_colours and locked_bbox:
-        bbox = box(
-            locked_bbox["lon_min"],
-            locked_bbox["lat_min"],
-            locked_bbox["lon_max"],
-            locked_bbox["lat_max"]
-        )
-        ddf = ddf[ddf.geometry.intersects(bbox)]
+    if use_locked:
+        ddf = gdf[gdf["ID"].isin(locked_regions)]
         if not ddf.empty:
             zmin = ddf[var].min()
             zmax = ddf[var].max()
-        else:
-            zmin = gdf[var].min()
-            zmax = gdf[var].max()
+        filtered_geojson = json.loads(ddf.to_json())
+
     elif "dynamic" in dynamic:
         try:
-            buffer_deg = max(0.05, 2.5 / (zoom + 0.5))
-            lon_min = center_lon - buffer_deg
-            lon_max = center_lon + buffer_deg
-            lat_min = center_lat - buffer_deg
-            lat_max = center_lat + buffer_deg
-            bbox = box(lon_min, lat_min, lon_max, lat_max)
-            ddf = ddf[ddf.geometry.intersects(bbox)]
+            coords = relayout_data.get("mapbox._derived", {}).get("coordinates")
+            if coords:
+                from shapely.geometry import Polygon
+                view_poly = Polygon(coords)
+                ddf = gdf[gdf.geometry.intersects(view_poly)]
+            else:
+                buffer_deg = max(0.05, 1.5 * 2 ** (-0.2 * zoom))
+                bbox = box(center_lon - buffer_deg, center_lat - buffer_deg,
+                           center_lon + buffer_deg, center_lat + buffer_deg)
+                ddf = gdf[gdf.geometry.intersects(bbox)]
+
             if not ddf.empty:
                 zmin = ddf[var].min()
                 zmax = ddf[var].max()
+
+            filtered_geojson = json.loads(ddf.to_json())
+
         except Exception as e:
-            print("Bounding box error:", e)
+            print("Dynamic bounding box error:", e)
+            ddf = gdf.copy()
+            filtered_geojson = json.loads(ddf.to_json())
+
+    else:
+        ddf = gdf.copy()
+        filtered_geojson = json.loads(ddf.to_json())
 
     if zmin is None or zmax is None:
         zmin = gdf[var].min()
@@ -220,10 +291,10 @@ def update_map(var, dynamic, relayout_data, locked_colour, lock_selection, locke
 
     fig = px.choropleth_mapbox(
         ddf,
-        geojson=geojson,
+        geojson=filtered_geojson,
         locations="ID",
         color=var,
-        color_continuous_scale="Viridis",
+        color_continuous_scale="RdYlBu",
         range_color=(zmin, zmax),
         hover_name="ID",
         center={"lat": center_lat, "lon": center_lon},
@@ -231,54 +302,86 @@ def update_map(var, dynamic, relayout_data, locked_colour, lock_selection, locke
         zoom=zoom,
         opacity=0.7
     )
+
     fig.update_layout(
         margin={"r": 0, "t": 20, "l": 0, "b": 0},
-        font=dict(family="Segoe UI, Roboto, sans-serif", size=14, color="#333"),
-        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Segoe UI"),
+        font=dict(family="Segoe UI, Roboto, sans-serif", size=14, color="#f8f9fa"),
+        plot_bgcolor="#343a40",
+        paper_bgcolor="#343a40",
+        hoverlabel=dict(
+            bgcolor="#343a40",
+            font_size=12,
+            font_family="Segoe UI",
+            font_color="#f8f9fa"
+        ),
         coloraxis_colorbar=dict(
-            title=var.replace("_", " ").title(),
+            title=display_config.get(var, {}).get("title", var.replace("_", " ").title()),
             orientation="h",
-            yanchor="bottom",
-            y=-0.12,
+            yanchor="top",
+            y=1.05,
             x=0.5,
             xanchor="center",
             thickness=8,
             len=0.4
         )
     )
+
     return fig
-
-
 
 
 
 @app.callback(
     Output("locked-colour-scale", "data"),
     Output("locked-bbox", "data"),
+    Output("locked-regions", "data"),
     Output("dynamic-scale", "value"),
     Output("lock-selection", "value"),
     Input("lock-selection", "value"),
     Input("reset-view", "n_clicks"),
     State("map", "relayoutData"),
-    State("var-dropdown", "value")
+    State("var-dropdown", "value"),
+    prevent_initial_call=True,
+    allow_duplicate=True
 )
-def lock_colour_scale(lock_value, n_clicks, relayout_data, var):
+def lock_or_reset_callback(lock_value, n_clicks, relayout_data, var):
     triggered_id = ctx.triggered_id
-    if triggered_id == "reset-view":
-        return None, None, [], []
 
+    # 🔁 Handle reset
+    if triggered_id == "reset-view":
+        print("[RESET] Clearing lock state")
+        return None, None, None, [], []
+
+    # 🔁 Handle locking
     if "locked" not in lock_value or relayout_data is None:
-        return None, None, dash.no_update, dash.no_update
+        print("[LOCK] Not engaged or no relayout data")
+        return None, None, None, dash.no_update, dash.no_update
+
     try:
+        coords = relayout_data.get("mapbox._derived", {}).get("coordinates")
+        if coords:
+            from shapely.geometry import Polygon
+            viewport_poly = Polygon(coords)
+            visible = gdf[gdf.geometry.intersects(viewport_poly)]
+
+            if not visible.empty:
+                print(f"[LOCK] Polygon: {len(visible)} regions")
+                return {
+                    "zmin": visible[var].min(),
+                    "zmax": visible[var].max()
+                }, None, visible["ID"].tolist(), dash.no_update, dash.no_update
+
+        # Fallback box
         center = relayout_data.get("mapbox.center", {})
         center_lat = center.get("lat")
         center_lon = center.get("lon")
         zoom = relayout_data.get("mapbox.zoom", 4)
-        buffer_deg = max(0.05, 2.5 / (zoom + 0.5))
+        buffer_deg = max(0.05, 3.5 / (zoom + 0.5))
         bbox = box(center_lon - buffer_deg, center_lat - buffer_deg,
                    center_lon + buffer_deg, center_lat + buffer_deg)
         visible = gdf[gdf.geometry.intersects(bbox)]
+
         if not visible.empty:
+            print(f"[LOCK] Fallback box: {len(visible)} regions")
             return {
                 "zmin": visible[var].min(),
                 "zmax": visible[var].max()
@@ -287,10 +390,13 @@ def lock_colour_scale(lock_value, n_clicks, relayout_data, var):
                 "lat_max": center_lat + buffer_deg,
                 "lon_min": center_lon - buffer_deg,
                 "lon_max": center_lon + buffer_deg
-            }, dash.no_update, dash.no_update
+            }, visible["ID"].tolist(), dash.no_update, dash.no_update
+
     except Exception as e:
         print("Lock error:", e)
-    return None, None, dash.no_update, dash.no_update
+
+    return None, None, None, dash.no_update, dash.no_update
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8050))
