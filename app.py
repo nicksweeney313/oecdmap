@@ -171,10 +171,18 @@ app.layout = html.Div([
     ),
 
     html.Div(style={"flex": "1", "backgroundColor": "#343a40"}, children=[
-        dcc.Graph(
-            id="map",
-            style={"height": "85vh", "width": "100%"},
-            config={"scrollZoom": True}
+        dcc.Loading(
+            id="loading-map",
+            type="circle",  # or "default", "dot", "cube"
+            color="#ffffff",  # optional: white spinner to match dark background
+            fullscreen=False,
+            children=[
+                dcc.Graph(
+                    id="map",
+                    style={"height": "85vh", "width": "100%"},
+                    config={"scrollZoom": True}
+                )
+            ]
         )
     ]),
 
