@@ -106,7 +106,7 @@ app.layout = html.Div([
                         "This tool allows you to assess regions relative to their immediate context — ",
                         "a more informative lens for place-sensitive policy decisions. ",
                         html.Br(),
-                        html.Em("See below for comments and extensions.")
+                        html.Em("-- Beta made for May 2025 OECD Data Scientist application. See below for comments and potential extensions --")
                     ], className="text-light small", style={"marginBottom": "0.8rem", "marginTop": "0.8rem"})
                 ])
             ])
@@ -171,18 +171,19 @@ app.layout = html.Div([
     ),
 
     html.Div(style={"flex": "1", "backgroundColor": "#343a40"}, children=[
-        dcc.Loading(
-            id="loading-map",
-            type="circle",  # or "default", "dot", "cube"
-            color="#ffffff",  # optional: white spinner to match dark background
-            fullscreen=False,
-            children=[
-                dcc.Graph(
-                    id="map",
-                    style={"height": "85vh", "width": "100%"},
-                    config={"scrollZoom": True}
-                )
-            ]
+        dcc.Graph(
+            id="map",
+            figure={
+                "data": [],
+                "layout": {
+                    "xaxis": {"visible": False},
+                    "yaxis": {"visible": False},
+                    "plot_bgcolor": "#343a40",
+                    "paper_bgcolor": "#343a40"
+                }
+            },
+            style={"height": "85vh", "width": "100%"},
+            config={"scrollZoom": True}
         )
     ]),
 
@@ -208,6 +209,7 @@ app.layout = html.Div([
     dcc.Store(id="reset-trigger", data=0),
     dcc.Store(id="locked-bbox", data=None),
     dcc.Store(id="locked-regions", data=None),
+    dcc.Store(id="first-load", data=True),
 
     html.Footer(
         dbc.Container(
