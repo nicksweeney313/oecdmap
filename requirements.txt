@@ -6,6 +6,7 @@ plotly
 numpy
 pandas
 matplotlib
+dash_bootstrap_components
 geopandas
 shapely
 pyproj

@@ -4,31 +4,42 @@ import numpy as np
 import plotly.express as px
 import dash
 from dash import dcc, html, Input, Output, State, ctx
+import dash_bootstrap_components as dbc
 import json
 import os
 from shapely.geometry import box
 import tempfile
 import requests
 import zipfile
-import os
+import glob
 
-# === Load and simplify shapefile from a remote ZIP ===
-def load_gdf_from_remote_zip(url, simplify_tolerance=0.01):
+# === Define your available shapefile sources ===
+shapefile_sources = {
+    "test": "https://www.dropbox.com/scl/fi/7wxfgrlddf49lec66ltdc/test.zip?rlkey=wvh4g4oxkcym13789e5ean2ag&dl=1",
+    "england": "https://www.dropbox.com/scl/fi/1wwyzlkalggbm7d5qn30a/england.zip?rlkey=lwcz15d3vsfohr2atzdqvs8rb&st=4nt52dnr&dl=1",
+    "all": "https://www.dropbox.com/scl/fi/n3ea3x9d7zeqd2yrdbzlt/OECD_TL2_shapefile.zip?rlkey=5rmmxpqj4zskalmiva89h1zk1&st=e9qh17dw&dl=1"
+}
+
+shapefile_name = {
+    "test": "test",
+    "england": "england",
+    "all": "OECD_TL2_shapefile"
+}
+
+region = "england"
+
+def load_gdf_from_remote_zip(url, simplify_tolerance=0.005):
     with tempfile.TemporaryDirectory() as tmpdir:
-        zip_path = os.path.join(tmpdir, "test.zip")
+        zip_name = f"{region}.zip"
+        zip_path = os.path.join(tmpdir, zip_name)
 
-        # Download the ZIP
         r = requests.get(url)
         with open(zip_path, "wb") as f:
             f.write(r.content)
 
-        # Extract
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             zip_ref.extractall(tmpdir)
 
-        # Find and read the .shp file
-        # Recursively find .shp file
-        import glob
         shp_files = glob.glob(os.path.join(tmpdir, "**", "*.shp"), recursive=True)
         if shp_files:
             gdf = gpd.read_file(shp_files[0]).to_crs("EPSG:4326")
@@ -36,9 +47,11 @@ def load_gdf_from_remote_zip(url, simplify_tolerance=0.01):
             if simplify_tolerance:
                 gdf["geometry"] = gdf["geometry"].simplify(simplify_tolerance, preserve_topology=True)
             return gdf
-        
+
     raise FileNotFoundError("Shapefile not found in ZIP")
-gdf = load_gdf_from_remote_zip("https://www.dropbox.com/scl/fi/7wxfgrlddf49lec66ltdc/test.zip?rlkey=wvh4g4oxkcym13789e5ean2ag&st=00tjzr92&dl=1")
+
+# Load shapefile
+gdf = load_gdf_from_remote_zip(shapefile_sources[region], simplify_tolerance=0.005)
 
 # === Add extreme-value demo variables ===
 def add_extreme_values(gdf, seed=42):
@@ -54,155 +67,98 @@ def add_extreme_values(gdf, seed=42):
                  np.random.normal(loc=1200, scale=150, size=n)), 2)
     return gdf
 
-# Load data
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 gdf = add_extreme_values(gdf)
 geojson = json.loads(gdf.to_json())
 available_vars = ["ghg_emissions", "pop_density"]
 
-# === Dash App ===
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
 
-app.layout = html.Div(
-    style={
-        "height": "100vh",
-        "display": "flex",
-        "flexDirection": "column",
-        "fontFamily": "Segoe UI, Roboto, sans-serif",
-        "backgroundColor": "#ffffff"
-    },
-    children=[
-        html.Div(
-            style={
-                "padding": "1.5rem 2rem",
-                "background": "#ffffff",
-                "borderBottom": "1px solid #d3d3d3",
-                "borderBottom": "1px solid #d3d3d3",
-                "textAlign": "center"
-            },
-            children=[
-                html.H2("Local Colour Scale Demonstration", style={"marginBottom": "1rem"}),
-                html.Div(
-                    style={
-                        "display": "flex",
-                        "justifyContent": "center",
-                        "alignItems": "center",
-                        "flexWrap": "wrap",
-                        "gap": "1rem"
-                    },
-                    children=[
-                        html.Div([
-                            html.Label("Select Variable:", style={"fontWeight": "bold"}),
-                            dcc.Dropdown(
-                                id="var-dropdown",
-                                options=[{"label": v.replace("_", " ").title(), "value": v} for v in available_vars],
-                                value=available_vars[0],
-                                style={"width": "200px"}
-                            )
-                        ]),
-                        html.Div([
-                            html.Label("Local Colour Scale:", style={"fontWeight": "bold"}),
-                            dcc.Checklist(
-                                id="dynamic-scale",
-                                options=[{"label": "Enable", "value": "dynamic"}],
-                                value=[],
-                                labelStyle={"marginRight": "1rem"}
-                            )
-                        ]),
-                        html.Div([
-                            html.Label("Lock Colour Scale:", style={"fontWeight": "bold"}),
-                            dcc.Checklist(
-                                id="lock-selection",
-                                options=[{"label": "Lock", "value": "locked"}],
-                                value=[],
-                                inline=True
-                            )
-                        ]),
-                        html.Button("Reset View", id="reset-view", n_clicks=0)
-                    ]
+app.layout = html.Div([
+    dbc.Navbar(
+        dbc.Container([
+            dbc.Row([
+                dbc.Col(html.H4("OECD Local Colour Scale Viewer", className="text-white fw-bold mb-0"), width="auto"),
+            ], align="center", className="g-0"),
+        ], fluid=True),
+        color="dark", dark=True, className="mb-3 shadow-sm"
+    ),
+    dbc.Container([
+        
+        dbc.Row([
+            dbc.Col([
+                html.Label("Select Variable:", className="fw-bold small"),
+                dcc.Dropdown(
+                    id="var-dropdown",
+                    options=[{"label": v.replace("_", " ").title(), "value": v} for v in available_vars],
+                    value=available_vars[0],
+                    style={"fontSize": "0.85rem"}
                 )
-            ]
-        ),
-        html.Div(
-            style={"flex": "1"},
-            children=[
-                dcc.Graph(
-                    id="map",
-                    style={"height": "100%", "width": "100%"},
-                    config={"scrollZoom": True}
+            ], xs=12, sm=6, md=3),
+
+            dbc.Col([
+                html.Label("Local Colour Scale:", className="fw-bold small"),
+                dcc.Checklist(
+                    id="dynamic-scale",
+                    options=[{"label": "Enable", "value": "dynamic"}],
+                    value=[],
+                    labelStyle={"marginRight": "1rem", "fontSize": "0.85rem"}
                 )
-            ]
+            ], xs=12, sm=6, md=3),
+
+            dbc.Col([
+                html.Label("Lock Colour Scale:", className="fw-bold small"),
+                dcc.Checklist(
+                    id="lock-selection",
+                    options=[{"label": "Lock", "value": "locked"}],
+                    value=[],
+                    labelStyle={"fontSize": "0.85rem"}
+                )
+            ], xs=12, sm=6, md=3),
+
+            dbc.Col([
+                html.Label("\u00a0", style={"display": "block"}),
+                html.Button("Reset View", id="reset-view", n_clicks=0, className="btn btn-outline-secondary btn-sm")
+            ], xs=12, sm=6, md=3)
+        ])
+    ], fluid=True),
+
+    html.Div(style={"flex": "1"}, children=[
+        dcc.Graph(
+            id="map",
+            style={"height": "85vh", "width": "100%"},
+            config={"scrollZoom": True}
+        )
+    ]),
+
+    dcc.Store(id="locked-colour-scale", data=None),
+    dcc.Store(id="reset-trigger", data=0),
+    dcc.Store(id="locked-bbox", data=None),
+
+    html.Footer(
+        dbc.Container(
+            dbc.Row(
+                dbc.Col(
+                    html.Small("Built with Dash and Plotly | Local Scale Prototype", className="text-muted"),
+                    className="text-center py-2"
+                )
+            )
         ),
-        dcc.Store(id="locked-colour-scale", data=None),
-        dcc.Store(id="reset-trigger", data=0)
-    ]
-)
-
-@app.callback(
-    Output("dynamic-scale", "value"),
-    Output("lock-selection", "value"),
-    Output("locked-colour-scale", "data"),
-    Output("reset-trigger", "data"),
-    Input("reset-view", "n_clicks"),
-    Input("lock-selection", "value"),
-    State("map", "relayoutData"),
-    State("var-dropdown", "value"),
-    State("reset-trigger", "data"),
-    prevent_initial_call=True
-)
-def unified_control_reset(reset_clicks, lock_value, relayout_data, var, prev_reset_flag):
-    triggered_id = ctx.triggered_id
-
-    # Handle reset
-    if triggered_id == "reset-view":
-        return [], [], None, reset_clicks
-
-    # Handle lock toggle — when checklist was ticked on
-    if "locked" in lock_value and relayout_data:
-        try:
-            if "mapbox.center.lon" in relayout_data and "mapbox.center.lat" in relayout_data:
-                center_lon = relayout_data["mapbox.center.lon"]
-                center_lat = relayout_data["mapbox.center.lat"]
-            elif "mapbox.center" in relayout_data:
-                center = relayout_data["mapbox.center"]
-                center_lat = center.get("lat")
-                center_lon = center.get("lon")
-            else:
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
-            zoom = relayout_data.get("mapbox.zoom", 4)
-            buffer_deg = max(2, 15 / (zoom + 0.5))
-            lon_min = center_lon - buffer_deg
-            lon_max = center_lon + buffer_deg
-            lat_min = center_lat - buffer_deg
-            lat_max = center_lat + buffer_deg
-            bbox = box(lon_min, lat_min, lon_max, lat_max)
-            visible = gdf[gdf.geometry.intersects(bbox)]
-
-            if not visible.empty:
-                locked = {
-                    "zmin": visible[var].min(),
-                    "zmax": visible[var].max()
-                }
-                return dash.no_update, dash.no_update, locked, dash.no_update
-        except Exception as e:
-            print("Colour lock capture failed:", e)
-
-    return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
+        style={"backgroundColor": "#f8f9fa", "borderTop": "1px solid #dee2e6"}
+    )
+])
 
 @app.callback(
     Output("map", "figure"),
     Input("var-dropdown", "value"),
     Input("dynamic-scale", "value"),
     Input("map", "relayoutData"),
-    Input("reset-trigger", "data"),
-    State("map", "figure"),
     State("locked-colour-scale", "data"),
-    State("lock-selection", "value")
+    State("lock-selection", "value"),
+    State("locked-bbox", "data")
 )
-def update_map(var, dynamic, relayout_data, reset_flag, figure_state, locked_colour, lock_selection):
+def update_map(var, dynamic, relayout_data, locked_colour, lock_selection, locked_bbox):
     ddf = gdf.copy()
 
     projected = gdf.to_crs("EPSG:3857")
@@ -227,12 +183,23 @@ def update_map(var, dynamic, relayout_data, reset_flag, figure_state, locked_col
     zmin, zmax = None, None
     use_locked_colours = "locked" in lock_selection and locked_colour is not None
 
-    if use_locked_colours:
-        zmin = locked_colour.get("zmin", gdf[var].min())
-        zmax = locked_colour.get("zmax", gdf[var].max())
+    if use_locked_colours and locked_bbox:
+        bbox = box(
+            locked_bbox["lon_min"],
+            locked_bbox["lat_min"],
+            locked_bbox["lon_max"],
+            locked_bbox["lat_max"]
+        )
+        ddf = ddf[ddf.geometry.intersects(bbox)]
+        if not ddf.empty:
+            zmin = ddf[var].min()
+            zmax = ddf[var].max()
+        else:
+            zmin = gdf[var].min()
+            zmax = gdf[var].max()
     elif "dynamic" in dynamic:
         try:
-            buffer_deg = max(2, 15 / (zoom + 0.5))
+            buffer_deg = max(0.05, 2.5 / (zoom + 0.5))
             lon_min = center_lon - buffer_deg
             lon_max = center_lon + buffer_deg
             lat_min = center_lat - buffer_deg
@@ -265,12 +232,66 @@ def update_map(var, dynamic, relayout_data, reset_flag, figure_state, locked_col
         opacity=0.7
     )
     fig.update_layout(
-        margin={"r": 0, "t": 30, "l": 0, "b": 0},
-        font=dict(family="Segoe UI, Roboto, sans-serif", size=14, color="#333")
+        margin={"r": 0, "t": 20, "l": 0, "b": 0},
+        font=dict(family="Segoe UI, Roboto, sans-serif", size=14, color="#333"),
+        hoverlabel=dict(bgcolor="white", font_size=12, font_family="Segoe UI"),
+        coloraxis_colorbar=dict(
+            title=var.replace("_", " ").title(),
+            orientation="h",
+            yanchor="bottom",
+            y=-0.12,
+            x=0.5,
+            xanchor="center",
+            thickness=8,
+            len=0.4
+        )
     )
     return fig
 
+
+
+
+
+@app.callback(
+    Output("locked-colour-scale", "data"),
+    Output("locked-bbox", "data"),
+    Output("dynamic-scale", "value"),
+    Output("lock-selection", "value"),
+    Input("lock-selection", "value"),
+    Input("reset-view", "n_clicks"),
+    State("map", "relayoutData"),
+    State("var-dropdown", "value")
+)
+def lock_colour_scale(lock_value, n_clicks, relayout_data, var):
+    triggered_id = ctx.triggered_id
+    if triggered_id == "reset-view":
+        return None, None, [], []
+
+    if "locked" not in lock_value or relayout_data is None:
+        return None, None, dash.no_update, dash.no_update
+    try:
+        center = relayout_data.get("mapbox.center", {})
+        center_lat = center.get("lat")
+        center_lon = center.get("lon")
+        zoom = relayout_data.get("mapbox.zoom", 4)
+        buffer_deg = max(0.05, 2.5 / (zoom + 0.5))
+        bbox = box(center_lon - buffer_deg, center_lat - buffer_deg,
+                   center_lon + buffer_deg, center_lat + buffer_deg)
+        visible = gdf[gdf.geometry.intersects(bbox)]
+        if not visible.empty:
+            return {
+                "zmin": visible[var].min(),
+                "zmax": visible[var].max()
+            }, {
+                "lat_min": center_lat - buffer_deg,
+                "lat_max": center_lat + buffer_deg,
+                "lon_min": center_lon - buffer_deg,
+                "lon_max": center_lon + buffer_deg
+            }, dash.no_update, dash.no_update
+    except Exception as e:
+        print("Lock error:", e)
+    return None, None, dash.no_update, dash.no_update
+
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 8050))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=True)
